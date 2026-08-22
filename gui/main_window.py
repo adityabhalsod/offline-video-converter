@@ -7,7 +7,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import Qt, QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -91,6 +91,15 @@ class FFmpegWorker(QThread):
             self.signals.error.emit(str(exc))
 
 
+def _make_form() -> QFormLayout:
+    form = QFormLayout()
+    form.setSpacing(10)
+    form.setContentsMargins(0, 4, 0, 8)
+    form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+    return form
+
+
 class FeatureTab(QWidget):
     """Base tab with input/output paths and run button."""
 
@@ -98,11 +107,13 @@ class FeatureTab(QWidget):
         super().__init__(parent)
         self.feature_name = title.lower().replace(" ", "_")
         self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(12)
+        self.layout.setContentsMargins(12, 12, 12, 12)
         self.drop = DropZone()
         self.layout.addWidget(self.drop)
         self.input_edit = QLineEdit()
         self.output_edit = QLineEdit()
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Input", self.input_edit)
         form.addRow("Output", self.output_edit)
         self.layout.addLayout(form)
@@ -182,7 +193,12 @@ class MainWindow(QMainWindow):
         self._apply_theme()
 
     def _apply_theme(self) -> None:
-        self.setStyleSheet(DARK_THEME if self._dark else LIGHT_THEME)
+        stylesheet = DARK_THEME if self._dark else LIGHT_THEME
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(stylesheet)
+        else:
+            self.setStyleSheet(stylesheet)
 
     def _toggle_theme(self) -> None:
         self._dark = not self._dark
@@ -230,7 +246,7 @@ class MainWindow(QMainWindow):
         self.strip_meta.setChecked(settings.get("strip_metadata", False))
         self.hw_accel = QCheckBox("Hardware acceleration")
         self.hw_accel.setChecked(settings.get("hw_accel", False))
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Codec", self.codec_combo)
         form.addRow("CRF", self.crf_spin)
         form.addRow(self.strip_meta)
@@ -268,7 +284,7 @@ class MainWindow(QMainWindow):
         self.cut_end = QLineEdit("00:00:02.000")
         self.cut_mode = QComboBox()
         self.cut_mode.addItems(["fast", "precise"])
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Start", self.cut_start)
         form.addRow("End", self.cut_end)
         form.addRow("Mode", self.cut_mode)
@@ -294,7 +310,7 @@ class MainWindow(QMainWindow):
         self.audio_br = QComboBox()
         self.audio_br.addItems([b.value for b in AudioBitrate])
         self.audio_norm = QCheckBox("Loudness normalization")
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Format", self.audio_fmt)
         form.addRow("Bitrate", self.audio_br)
         form.addRow(self.audio_norm)
@@ -318,7 +334,7 @@ class MainWindow(QMainWindow):
         self.target_mb = QDoubleSpinBox()
         self.target_mb.setRange(0.5, 5000)
         self.target_mb.setValue(10)
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Target size (MB)", self.target_mb)
         grp = QGroupBox("Compress Settings")
         grp.setLayout(form)
@@ -335,7 +351,7 @@ class MainWindow(QMainWindow):
         tab = FeatureTab("Merge")
         self.merge_list = QLineEdit()
         self.merge_list.setPlaceholderText("Comma-separated input paths")
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Inputs", self.merge_list)
         grp = QGroupBox("Merge Settings")
         grp.setLayout(form)
@@ -361,7 +377,7 @@ class MainWindow(QMainWindow):
         self.wm_text = QLineEdit()
         self.wm_pos = QComboBox()
         self.wm_pos.addItems([p.value for p in Position])
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Image path", self.wm_image)
         form.addRow("Text", self.wm_text)
         form.addRow("Position", self.wm_pos)
@@ -386,7 +402,7 @@ class MainWindow(QMainWindow):
         self.batch_workers = QSpinBox()
         self.batch_workers.setRange(1, 8)
         self.batch_workers.setValue(2)
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Input folder", self.batch_folder)
         form.addRow("Workers", self.batch_workers)
         grp = QGroupBox("Batch Settings")
@@ -423,7 +439,7 @@ class MainWindow(QMainWindow):
         self.speed_factor.setRange(0.25, 4.0)
         self.speed_factor.setSingleStep(0.25)
         self.speed_factor.setValue(1.0)
-        form = QFormLayout()
+        form = _make_form()
         form.addRow("Factor", self.speed_factor)
         grp = QGroupBox("Speed Settings")
         grp.setLayout(form)
