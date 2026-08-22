@@ -1,17 +1,18 @@
 """Light and dark theme styles for PySide6."""
 
-_SHARED_GROUPBOX = """
-QGroupBox {
-    font-weight: bold;
+_SHARED_SETTINGS_GROUP = """
+QFrame#settingsGroup {
     border-radius: 6px;
-    margin-top: 16px;
-    padding: 20px 12px 12px 12px;
+    margin-top: 4px;
 }
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 8px;
-    left: 12px;
+QLabel#settingsGroupTitle {
+    font-weight: bold;
+    padding: 8px 10px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+QWidget#settingsGroupBody {
+    background: transparent;
 }
 """
 
@@ -91,14 +92,15 @@ QProgressBar {{
     min-height: 22px;
 }}
 QProgressBar::chunk {{ background: #2563eb; border-radius: 5px; }}
-{_SHARED_GROUPBOX}
-QGroupBox {{
+{_SHARED_SETTINGS_GROUP}
+QFrame#settingsGroup {{
     border: 1px solid #d1d5db;
     background: #ffffff;
 }}
-QGroupBox::title {{
+QLabel#settingsGroupTitle {{
+    background: #f3f4f6;
     color: #111827;
-    background: #ffffff;
+    border-bottom: 1px solid #d1d5db;
 }}
 QLabel#dropZone {{
     border: 2px dashed #94a3b8;
@@ -206,14 +208,15 @@ QProgressBar {{
     min-height: 22px;
 }}
 QProgressBar::chunk {{ background: #89b4fa; border-radius: 5px; }}
-{_SHARED_GROUPBOX}
-QGroupBox {{
+{_SHARED_SETTINGS_GROUP}
+QFrame#settingsGroup {{
     border: 1px solid #45475a;
     background: #1e1e2e;
 }}
-QGroupBox::title {{
+QLabel#settingsGroupTitle {{
+    background: #313244;
     color: #cdd6f4;
-    background: #1e1e2e;
+    border-bottom: 1px solid #45475a;
 }}
 QLabel#dropZone {{
     border: 2px dashed #585b70;
