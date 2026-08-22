@@ -1,0 +1,44 @@
+{
+  "youtube_1080p": {
+    "name": "YouTube 1080p",
+    "width": 1920,
+    "height": 1080,
+    "video_codec": "h264",
+    "crf": 23,
+    "audio_bitrate": "192k",
+    "format": "mp4"
+  },
+  "instagram_reel": {
+    "name": "Instagram Reel (9:16)",
+    "width": 1080,
+    "height": 1920,
+    "video_codec": "h264",
+    "crf": 23,
+    "audio_bitrate": "128k",
+    "format": "mp4"
+  },
+  "tiktok": {
+    "name": "TikTok",
+    "width": 1080,
+    "height": 1920,
+    "video_codec": "h264",
+    "crf": 23,
+    "audio_bitrate": "128k",
+    "format": "mp4"
+  },
+  "whatsapp": {
+    "name": "WhatsApp (size-capped)",
+    "target_size_mb": 16,
+    "video_codec": "h264",
+    "format": "mp4"
+  },
+  "twitter_x": {
+    "name": "Twitter/X",
+    "width": 1280,
+    "height": 720,
+    "video_codec": "h264",
+    "crf": 23,
+    "audio_bitrate": "128k",
+    "format": "mp4"
+  }
+}
