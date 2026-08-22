@@ -111,6 +111,7 @@ class FeatureTab(QWidget):
         self.input_edit = PathInput(mode="open", dialog_title="Select input video")
         self.output_edit = PathInput(mode="save", dialog_title="Select output path")
         self.output_edit.setPlaceholderText("Choose output path…")
+        self.output_edit.set_default_path_provider(lambda: self.input_edit.text())
         form = make_form()
         form.addRow("Input", self.input_edit)
         form.addRow("Output", self.output_edit)

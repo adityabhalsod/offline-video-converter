@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -12,7 +14,6 @@ from PySide6.QtWidgets import (
     QToolButton,
     QWidget,
 )
-
 
 class PathInput(QFrame):
     """Single-line path editor with a browse icon on the right."""
@@ -26,6 +27,7 @@ class PathInput(QFrame):
         super().__init__(parent)
         self._mode = mode
         self._dialog_title = dialog_title
+        self._default_path_provider: Callable[[], str] | None = None
         self.setObjectName("pathInput")
 
         layout = QHBoxLayout(self)
@@ -65,12 +67,25 @@ class PathInput(QFrame):
     def setPlaceholderText(self, text: str) -> None:
         self.line_edit.setPlaceholderText(text)
 
+    def set_default_path_provider(self, provider: Callable[[], str] | None) -> None:
+        """Optional callback used when the field is empty to seed the browse dialog."""
+        self._default_path_provider = provider
+
+    def _browse_start_path(self) -> str:
+        current = self.line_edit.text().strip()
+        if current:
+            return current
+        if self._default_path_provider is not None:
+            return self._default_path_provider().strip()
+        return ""
+
     def _browse(self) -> None:
+        start_path = self._browse_start_path()
         if self._mode == "save":
-            path, _ = QFileDialog.getSaveFileName(self, self._dialog_title)
+            path, _ = QFileDialog.getSaveFileName(self, self._dialog_title, start_path)
         elif self._mode == "dir":
-            path = QFileDialog.getExistingDirectory(self, self._dialog_title)
+            path = QFileDialog.getExistingDirectory(self, self._dialog_title, start_path)
         else:
-            path, _ = QFileDialog.getOpenFileName(self, self._dialog_title)
+            path, _ = QFileDialog.getOpenFileName(self, self._dialog_title, start_path)
         if path:
             self.line_edit.setText(path)
