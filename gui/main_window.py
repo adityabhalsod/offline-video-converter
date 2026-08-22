@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -42,6 +41,7 @@ from core.job import Job, JobQueue
 from gui.theme import DARK_THEME, LIGHT_THEME
 from gui.widgets.drop_zone import DropZone
 from gui.widgets.job_queue_view import JobQueueView
+from gui.widgets.path_input import PathInput
 from gui.widgets.preview_player import PreviewPlayer
 from gui.widgets.settings_panel import SettingsGroup, make_form
 
@@ -108,20 +108,13 @@ class FeatureTab(QWidget):
         self.layout.setContentsMargins(8, 8, 8, 8)
         self.drop = DropZone()
         self.layout.addWidget(self.drop)
-        self.input_edit = QLineEdit()
-        self.output_edit = QLineEdit()
+        self.input_edit = PathInput(mode="open", dialog_title="Select input video")
+        self.output_edit = PathInput(mode="save", dialog_title="Select output path")
+        self.output_edit.setPlaceholderText("Choose output path…")
         form = make_form()
         form.addRow("Input", self.input_edit)
         form.addRow("Output", self.output_edit)
         self.layout.addLayout(form)
-        browse_in = QPushButton("Browse Input")
-        browse_out = QPushButton("Browse Output")
-        browse_in.clicked.connect(self._browse_input)
-        browse_out.clicked.connect(self._browse_output)
-        row = QHBoxLayout()
-        row.addWidget(browse_in)
-        row.addWidget(browse_out)
-        self.layout.addLayout(row)
         self.progress = QProgressBar()
         self.layout.addWidget(self.progress)
         self.run_btn = QPushButton(f"Run {title}")
@@ -131,16 +124,6 @@ class FeatureTab(QWidget):
     def _on_drop(self, paths: list[str]) -> None:
         if paths:
             self.input_edit.setText(paths[0])
-
-    def _browse_input(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Select input video")
-        if path:
-            self.input_edit.setText(path)
-
-    def _browse_output(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Select output path")
-        if path:
-            self.output_edit.setText(path)
 
 
 class MainWindow(QMainWindow):

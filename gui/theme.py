@@ -1,5 +1,27 @@
 """Light and dark theme styles for PySide6."""
 
+_SHARED_PATH_INPUT = """
+QFrame#pathInput {
+    border-radius: 6px;
+    min-height: 34px;
+}
+QLineEdit#pathInputField {
+    border: none;
+    background: transparent;
+    padding: 6px 10px;
+    min-height: 20px;
+}
+QToolButton#pathInputBrowse {
+    border: none;
+    padding: 0;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 32px;
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
+}
+"""
+
 _SHARED_SETTINGS_GROUP = """
 QFrame#settingsGroup {
     border-radius: 6px;
@@ -92,6 +114,22 @@ QProgressBar {{
     min-height: 22px;
 }}
 QProgressBar::chunk {{ background: #2563eb; border-radius: 5px; }}
+{_SHARED_PATH_INPUT}
+QFrame#pathInput {{
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+}}
+QToolButton#pathInputBrowse {{
+    border-left: 1px solid #d1d5db;
+    background: #f3f4f6;
+    color: #374151;
+}}
+QToolButton#pathInputBrowse:hover {{
+    background: #e5e7eb;
+}}
+QToolButton#pathInputBrowse:pressed {{
+    background: #d1d5db;
+}}
 {_SHARED_SETTINGS_GROUP}
 QFrame#settingsGroup {{
     border: 1px solid #d1d5db;
@@ -208,6 +246,22 @@ QProgressBar {{
     min-height: 22px;
 }}
 QProgressBar::chunk {{ background: #89b4fa; border-radius: 5px; }}
+{_SHARED_PATH_INPUT}
+QFrame#pathInput {{
+    border: 1px solid #45475a;
+    background: #313244;
+}}
+QToolButton#pathInputBrowse {{
+    border-left: 1px solid #45475a;
+    background: #45475a;
+    color: #cdd6f4;
+}}
+QToolButton#pathInputBrowse:hover {{
+    background: #585b70;
+}}
+QToolButton#pathInputBrowse:pressed {{
+    background: #6c7086;
+}}
 {_SHARED_SETTINGS_GROUP}
 QFrame#settingsGroup {{
     border: 1px solid #45475a;
