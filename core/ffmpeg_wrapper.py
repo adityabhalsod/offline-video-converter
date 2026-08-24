@@ -18,12 +18,56 @@ TIME_RE = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d+)")
 DURATION_RE = re.compile(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d+)")
 
 
+def stderr_summary(stderr: str, max_lines: int = 16) -> str:
+    """Extract the useful tail of ffmpeg stderr, skipping progress lines."""
+    if not stderr:
+        return ""
+    keywords = (
+        "error",
+        "failed",
+        "cannot",
+        "invalid",
+        "not permitted",
+        "unknown encoder",
+        "not found",
+        "does not support",
+        "unrecognized",
+        "permission denied",
+        "no such file",
+    )
+    lines = [ln.rstrip() for ln in stderr.splitlines() if ln.strip()]
+    interesting = [
+        ln
+        for ln in lines
+        if any(key in ln.lower() for key in keywords)
+        and not (ln.lstrip().startswith("frame=") and "time=" in ln)
+    ]
+    chosen = interesting[-max_lines:] if interesting else lines[-max_lines:]
+    return "\n".join(chosen)
+
+
+def signed_exit_code(code: int | None) -> int:
+    """Normalize Windows DWORD exit codes such as 4294967295 to -1."""
+    if code is None:
+        return -1
+    if code > 0x7FFFFFFF:
+        return code - 0x100000000
+    return code
+
+
 class FFmpegError(Exception):
     """Raised when ffmpeg/ffprobe fails."""
 
     def __init__(self, message: str, stderr: str = "") -> None:
-        super().__init__(message)
         self.stderr = stderr
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        message = super().__str__()
+        summary = stderr_summary(self.stderr)
+        if summary and summary not in message:
+            return f"{message}\n{summary}"
+        return message
 
 
 @dataclass
@@ -143,6 +187,10 @@ def probe(path: str) -> ProbeResult:
     )
 
 
+def build_ffmpeg_cmd(args: list[str]) -> list[str]:
+    return ["ffmpeg", "-hide_banner", "-nostdin", "-y", *args]
+
+
 def run_ffmpeg(
     args: list[str],
     *,
@@ -152,16 +200,22 @@ def run_ffmpeg(
 ) -> subprocess.CompletedProcess:
     """Run ffmpeg with optional progress reporting via stderr parsing."""
     require_ffmpeg()
-    cmd = ["ffmpeg", "-hide_banner", "-y", *args]
+    cmd = build_ffmpeg_cmd(args)
     logger.debug("Running: %s", " ".join(cmd))
 
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
+    popen_kwargs: dict = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "stdin": subprocess.DEVNULL,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "bufsize": 1,
+    }
+    if sys.platform == "win32":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+    process = subprocess.Popen(cmd, **popen_kwargs)
     stderr_lines: list[str] = []
     assert process.stderr is not None
 
@@ -183,7 +237,10 @@ def run_ffmpeg(
     stderr = "".join(stderr_lines)
 
     if process.returncode != 0:
-        raise FFmpegError(f"ffmpeg failed (exit {process.returncode})", stderr)
+        raise FFmpegError(
+            f"ffmpeg failed (exit {signed_exit_code(process.returncode)})",
+            stderr,
+        )
 
     if progress_callback:
         progress_callback(1.0)
@@ -191,22 +248,84 @@ def run_ffmpeg(
     return subprocess.CompletedProcess(cmd, process.returncode, "", stderr)
 
 
-def detect_hw_encoder() -> Optional[str]:
-    """Return first available hardware H.264 encoder or None."""
+HW_ENCODER_CANDIDATES = {
+    "h264": ("h264_nvenc", "h264_amf", "h264_qsv", "h264_vaapi", "h264_videotoolbox"),
+    "h265": ("hevc_nvenc", "hevc_amf", "hevc_qsv", "hevc_vaapi", "hevc_videotoolbox"),
+    "vp9": ("vp9_qsv", "vp9_vaapi"),
+}
+
+_listed_encoders_cache: Optional[set[str]] = None
+_usable_encoders_cache: dict[str, bool] = {}
+
+
+def hw_encoder_candidates(codec: str) -> tuple[str, ...]:
+    if codec in ("h265", "hevc"):
+        return HW_ENCODER_CANDIDATES["h265"]
+    return HW_ENCODER_CANDIDATES.get(codec, HW_ENCODER_CANDIDATES["h264"])
+
+
+def listed_encoders() -> set[str]:
+    global _listed_encoders_cache
+    if _listed_encoders_cache is not None:
+        return _listed_encoders_cache
+    require_ffmpeg()
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-encoders"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    names: set[str] = set()
+    for line in (result.stdout or "").splitlines():
+        if len(line) < 8 or line[1] not in "VAS" or "." not in line[:8]:
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            names.add(parts[1])
+    _listed_encoders_cache = names
+    return names
+
+
+def is_encoder_usable(name: str) -> bool:
+    """Return True if ffmpeg can actually initialize this video encoder."""
+    if name in _usable_encoders_cache:
+        return _usable_encoders_cache[name]
     require_ffmpeg()
     try:
         result = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-encoders"],
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-nostdin",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=320x240:d=0.1",
+                "-c:v",
+                name,
+                "-f",
+                "null",
+                "-",
+            ],
             capture_output=True,
             text=True,
-            check=True,
+            timeout=20,
+            stdin=subprocess.DEVNULL,
         )
-    except subprocess.CalledProcessError:
-        return None
+        ok = result.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        ok = False
+    _usable_encoders_cache[name] = ok
+    logger.debug("Encoder %s usable=%s", name, ok)
+    return ok
 
-    encoders = result.stdout
-    for name in ("h264_nvenc", "h264_qsv", "h264_vaapi", "h264_videotoolbox"):
-        if name in encoders:
+
+def detect_hw_encoder(codec: str = "h264") -> Optional[str]:
+    """Return first hardware encoder that is listed AND actually works, or None."""
+    available = listed_encoders()
+    for name in hw_encoder_candidates(codec):
+        if name in available and is_encoder_usable(name):
             return name
     return None
 

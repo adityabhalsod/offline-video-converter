@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
         if not inp or not out:
             QMessageBox.warning(self, "Missing paths", "Provide input and output paths.")
             return
-        self.preview.load(inp)
+        self.preview.clear()
         worker = FFmpegWorker(func, inp, out, **kwargs)
         worker.signals.progress.connect(lambda p: self.sender().progress.setValue(int(p * 100)) if hasattr(self.sender(), "progress") else None)
         tab = self.tabs.currentWidget()
