@@ -1,0 +1,176 @@
+# Manual, versioned release.
+# Run it from the Actions tab: "Release" -> "Run workflow", enter a version like 1.0.0.
+# It runs the tests, builds the app for Windows, macOS and Linux with PyInstaller,
+# tags the commit as v<version>, and publishes a GitHub Release with the builds attached.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 1.0.0 or 1.1.0-beta.1)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as a pre-release"
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: "Create as a draft (publish it yourself from the Releases page)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  APP_NAME: OfflineVideoConverter
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version format and that the tag is new
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not semver (expected e.g. 1.2.3 or 1.2.3-beta.1)"
+            exit 1
+          fi
+          TAG="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists. Pick a new version."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q
+
+  build:
+    name: Build (${{ matrix.label }})
+    needs: [validate, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows-x64
+          - os: macos-latest
+            label: macos-arm64
+          - os: ubuntu-22.04
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Stamp version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: echo "__version__ = \"$VERSION\"" > core/_version.py
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          SEP=":"
+          if [ "$RUNNER_OS" = "Windows" ]; then SEP=";"; fi
+          pyinstaller main.py \
+            --name "$APP_NAME" \
+            --windowed \
+            --noconfirm \
+            --add-data "presets${SEP}presets"
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          ARCHIVE="${APP_NAME}-v${VERSION}-${LABEL}"
+          mkdir -p release
+          cd dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z a -tzip "../release/${ARCHIVE}.zip" "$APP_NAME"
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            ditto -c -k --keepParent "${APP_NAME}.app" "../release/${ARCHIVE}.zip"
+          else
+            tar -czf "../release/${ARCHIVE}.tar.gz" "$APP_NAME"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.label }}
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          FLAGS=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
+          if [ "$DRAFT" = "true" ]; then FLAGS+=(--draft); fi
+          gh release create "$TAG" "${FLAGS[@]}" release/*

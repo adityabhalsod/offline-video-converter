@@ -31,6 +31,7 @@ from core.advanced.compressor import CompressOptions, compress_to_size
 from core.advanced.merger import MergeOptions, merge_videos
 from core.advanced.speed import SpeedOptions, change_speed
 from core.advanced.watermark import Position, WatermarkOptions, apply_watermark
+from core import __version__
 from core.audio_extractor import AudioBitrate, AudioFormat, ExtractOptions, extract_audio
 from core.batch import batch_convert_folder
 from core.config import append_history, get_feature_settings, save_feature_settings
@@ -421,6 +422,8 @@ def run_gui() -> int:
     setup_logging()
     ok, msg = check_ffmpeg()
     app = QApplication(sys.argv)
+    app.setApplicationName("Offline Video Converter")
+    app.setApplicationVersion(__version__)
     if not ok:
         QMessageBox.critical(None, "FFmpeg Required", f"{msg}\n\n{get_install_instructions()}")
         return 1
