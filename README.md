@@ -72,7 +72,16 @@ Releases are published by hand from GitHub Actions:
 2. Enter a version such as `1.0.0` (or `1.1.0-beta.1`), and optionally tick pre-release or draft.
 3. The workflow runs the tests, builds the app for Windows, macOS and Linux with PyInstaller, tags the commit `v<version>`, and publishes a GitHub Release with the builds and a `SHA256SUMS.txt` attached.
 
-The builds do not bundle FFmpeg, so it still needs to be installed and on PATH.
+Release files:
+
+| File | What it is |
+|------|------------|
+| `...-windows-x64-setup.exe` | Windows installer (Start menu and optional desktop shortcut, uninstaller). FFmpeg included. |
+| `...-windows-x64-portable.zip` | Windows, no install: extract the whole folder, then run `OfflineVideoConverter.exe`. FFmpeg included. |
+| `...-macos-arm64.zip` | macOS app bundle. Needs FFmpeg (`brew install ffmpeg`). |
+| `...-linux-x64.tar.gz` | Linux build. Needs FFmpeg (`sudo apt install ffmpeg`). |
+
+The Windows builds ship a GPL build of FFmpeg from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds); its license is in `ffmpeg/FFMPEG-LICENSE.txt`.
 `python main.py --version` prints the version (`0.0.0-dev` when running from source).
 
 ## Tests

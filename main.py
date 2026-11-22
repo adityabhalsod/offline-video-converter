@@ -6,6 +6,20 @@ import os
 import sys
 
 
+def _use_bundled_ffmpeg() -> None:
+    """Put an FFmpeg folder shipped next to the packaged app first on PATH.
+
+    Release builds for Windows include ffmpeg.exe/ffprobe.exe in an "ffmpeg"
+    folder beside the executable, so the app works without a separate install.
+    Running from source is unaffected.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    bundled = os.path.join(os.path.dirname(sys.executable), "ffmpeg")
+    if os.path.isdir(bundled):
+        os.environ["PATH"] = bundled + os.pathsep + os.environ.get("PATH", "")
+
+
 def _configure_qt() -> None:
     """Configure Qt before any PySide6 modules are imported."""
     rules = [r.strip() for r in os.environ.get("QT_LOGGING_RULES", "").split(";") if r.strip()]
@@ -26,6 +40,7 @@ def _configure_qt() -> None:
 
 
 def main() -> int:
+    _use_bundled_ffmpeg()
     if len(sys.argv) > 1:
         from cli import main as cli_main
 
