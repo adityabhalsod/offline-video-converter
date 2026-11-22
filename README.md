@@ -4,6 +4,14 @@ A cross-platform desktop video toolkit in Python with **format conversion**, **c
 
 Runs as a **GUI** (PySide6) or **CLI** from the same codebase.
 
+![Converting a video in Offline Video Converter](docs/images/demo.gif)
+
+## Screenshots
+
+| Convert | Cut | Extract audio (dark theme) |
+|---------|-----|----------------------------|
+| ![Convert tab](docs/images/convert-light.png) | ![Cut tab](docs/images/cut-light.png) | ![Extract Audio tab in the dark theme](docs/images/extract-audio-dark.png) |
+
 ## Prerequisites
 
 - Python 3.11+ (GUI requires 3.11-3.13 until PySide6 supports 3.14)
