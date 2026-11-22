@@ -3,6 +3,11 @@
 # It runs the tests, builds the app for Windows, macOS and Linux with PyInstaller,
 # tags the commit as v<version>, and publishes a GitHub Release with the builds attached.
 # Windows gets a Setup .exe installer and a portable zip, both with FFmpeg included.
+#
+# Code signing (Windows): optional. When the SIGNPATH_API_TOKEN secret and the
+# SIGNPATH_ORGANIZATION_ID variable are set, the app .exe and the installer are
+# signed through SignPath. Without them the build is unsigned, exactly as before.
+# Setup steps are in docs/CODE_SIGNING.md.
 name: Release
 
 on:
@@ -118,16 +123,38 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: echo "__version__ = \"$VERSION\"" > core/_version.py
 
+      - name: Windows version info
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python packaging/windows/make_version_info.py "$VERSION" build/version_info.txt
+
       - name: Build with PyInstaller
         shell: bash
         run: |
           SEP=":"
-          if [ "$RUNNER_OS" = "Windows" ]; then SEP=";"; fi
+          EXTRA=()
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            SEP=";"
+            EXTRA=(--icon packaging/icons/icon.ico --version-file build/version_info.txt)
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            EXTRA=(--icon packaging/icons/icon.icns --osx-bundle-identifier io.github.adityabhalsod.offlinevideoconverter)
+          fi
           pyinstaller main.py \
             --name "$APP_NAME" \
             --windowed \
             --noconfirm \
-            --add-data "presets${SEP}presets"
+            --add-data "presets${SEP}presets" \
+            --add-data "packaging/icons/icon.png${SEP}packaging/icons" \
+            "${EXTRA[@]}"
+
+      - name: Add icon and desktop entry (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          DEST="dist/$APP_NAME"
+          cp packaging/icons/icon.png "$DEST/$APP_NAME.png"
+          cp packaging/linux/offline-video-converter.desktop "$DEST/"
 
       - name: Bundle FFmpeg (Windows)
         if: runner.os == 'Windows'
@@ -143,6 +170,55 @@ jobs:
           cp "$SRC"bin/ffmpeg.exe "$SRC"bin/ffprobe.exe "$SRC"bin/*.dll "$DEST"/
           cp "$SRC"LICENSE.txt "$DEST"/FFMPEG-LICENSE.txt
           "$DEST/ffmpeg.exe" -hide_banner -version
+
+      - name: Check for signing setup (Windows)
+        id: signing
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          if [ -n "$SIGNPATH_API_TOKEN" ] && [ -n "$SIGNPATH_ORGANIZATION_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Code signing is set up: the exe and installer will be signed."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Code signing is not set up, so this Windows build is unsigned. See docs/CODE_SIGNING.md."
+          fi
+
+      - name: Upload exe for signing (Windows)
+        id: upload-unsigned-exe
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe-${{ matrix.label }}
+          path: dist/${{ env.APP_NAME }}/${{ env.APP_NAME }}.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign exe (Windows)
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'offline-video-converter' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: app-exe
+          github-artifact-id: ${{ steps.upload-unsigned-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-exe
+
+      - name: Use signed exe (Windows)
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item "signed-exe\$env:APP_NAME.exe" "dist\$env:APP_NAME\$env:APP_NAME.exe" -Force
+          $sig = Get-AuthenticodeSignature "dist\$env:APP_NAME\$env:APP_NAME.exe"
+          Write-Host "Signature: $($sig.Status) by $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Error "The exe is not validly signed"; exit 1 }
 
       - name: Smoke test the packaged app (Windows)
         if: runner.os == 'Windows'
@@ -177,6 +253,41 @@ jobs:
             "/DOutputDir=$PWD\release" "/DOutputName=$env:APP_NAME-v$env:VERSION-$env:LABEL-setup" `
             packaging\windows\installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer for signing (Windows)
+        id: upload-unsigned-installer
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer-${{ matrix.label }}
+          path: release/*-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer (Windows)
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'offline-video-converter' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+
+      - name: Use signed installer (Windows)
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          Get-ChildItem signed-installer -Filter *-setup.exe | ForEach-Object {
+            Copy-Item $_.FullName "release\$($_.Name)" -Force
+            $sig = Get-AuthenticodeSignature "release\$($_.Name)"
+            Write-Host "$($_.Name): $($sig.Status) by $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { Write-Error "The installer is not validly signed"; exit 1 }
+          }
 
       - name: Package
         shell: bash

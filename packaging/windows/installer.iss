@@ -15,6 +15,14 @@
   #define OutputName "OfflineVideoConverter-setup"
 #endif
 
+; Windows version resources only take numbers, so drop any "-beta.1" style suffix.
+#define DashPos Pos("-", AppVersion)
+#if DashPos > 0
+  #define NumericVersion Copy(AppVersion, 1, DashPos - 1)
+#else
+  #define NumericVersion AppVersion
+#endif
+
 #define AppName "Offline Video Converter"
 #define AppExe "OfflineVideoConverter.exe"
 
@@ -39,6 +47,11 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#AppExe}
+SetupIconFile=..\icons\icon.ico
+VersionInfoVersion={#NumericVersion}
+VersionInfoProductName={#AppName}
+VersionInfoCompany=adityabhalsod
+VersionInfoDescription={#AppName} Setup
 LicenseFile=..\..\LICENSE
 
 [Tasks]
