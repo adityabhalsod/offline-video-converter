@@ -162,7 +162,9 @@ def probe(path: str) -> ProbeResult:
         path,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL, **_no_window()
+        )
     except subprocess.CalledProcessError as exc:
         raise FFmpegError("ffprobe failed", exc.stderr or "") from exc
 
@@ -185,6 +187,13 @@ def probe(path: str) -> ProbeResult:
         format_name=data.get("format", {}).get("format_name"),
         raw=data,
     )
+
+
+def _no_window() -> dict:
+    """Keep ffmpeg/ffprobe from flashing a console window on Windows."""
+    if sys.platform == "win32":
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    return {}
 
 
 def build_ffmpeg_cmd(args: list[str]) -> list[str]:
@@ -212,8 +221,7 @@ def run_ffmpeg(
         "errors": "replace",
         "bufsize": 1,
     }
-    if sys.platform == "win32":
-        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    popen_kwargs.update(_no_window())
 
     process = subprocess.Popen(cmd, **popen_kwargs)
     stderr_lines: list[str] = []
@@ -274,6 +282,8 @@ def listed_encoders() -> set[str]:
         capture_output=True,
         text=True,
         check=False,
+        stdin=subprocess.DEVNULL,
+        **_no_window(),
     )
     names: set[str] = set()
     for line in (result.stdout or "").splitlines():
@@ -312,6 +322,7 @@ def is_encoder_usable(name: str) -> bool:
             text=True,
             timeout=20,
             stdin=subprocess.DEVNULL,
+            **_no_window(),
         )
         ok = result.returncode == 0
     except (subprocess.TimeoutExpired, OSError):
