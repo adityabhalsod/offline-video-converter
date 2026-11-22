@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -418,12 +419,34 @@ class MainWindow(QMainWindow):
         self._run_worker(change_speed, tab.input_edit.text(), tab.output_edit.text(), opts=opts)
 
 
+def _app_icon_path() -> Path:
+    """Location of the app icon, both from source and inside a PyInstaller build."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "packaging" / "icons" / "icon.png"
+
+
+def _set_windows_app_id() -> None:
+    """Give the process its own taskbar identity so Windows shows our icon, not Python's."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("adityabhalsod.OfflineVideoConverter")
+    except (AttributeError, OSError):
+        pass
+
+
 def run_gui() -> int:
     setup_logging()
     ok, msg = check_ffmpeg()
+    _set_windows_app_id()
     app = QApplication(sys.argv)
     app.setApplicationName("Offline Video Converter")
     app.setApplicationVersion(__version__)
+    icon_path = _app_icon_path()
+    if icon_path.is_file():
+        app.setWindowIcon(QIcon(str(icon_path)))
     if not ok:
         QMessageBox.critical(None, "FFmpeg Required", f"{msg}\n\n{get_install_instructions()}")
         return 1

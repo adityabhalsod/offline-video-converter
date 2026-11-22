@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Offline Video Converter
+Comment=Convert, cut and compress videos offline with FFmpeg
+# Edit the two paths below to where you extracted the app, then copy this file
+# to ~/.local/share/applications/ to get a menu entry with the app icon.
+Exec=/opt/OfflineVideoConverter/OfflineVideoConverter
+Icon=/opt/OfflineVideoConverter/OfflineVideoConverter.png
+Terminal=false
+Categories=AudioVideo;Video;
