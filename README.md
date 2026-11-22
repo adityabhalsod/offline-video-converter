@@ -64,6 +64,17 @@ python main.py thumbnail input.mp4 thumb.jpg --time 00:00:02.000
 
 Use `--help` on any subcommand for options.
 
+## Releases
+
+Releases are published by hand from GitHub Actions:
+
+1. Open the **Actions** tab, pick the **Release** workflow, and click **Run workflow**.
+2. Enter a version such as `1.0.0` (or `1.1.0-beta.1`), and optionally tick pre-release or draft.
+3. The workflow runs the tests, builds the app for Windows, macOS and Linux with PyInstaller, tags the commit `v<version>`, and publishes a GitHub Release with the builds and a `SHA256SUMS.txt` attached.
+
+The builds do not bundle FFmpeg, so it still needs to be installed and on PATH.
+`python main.py --version` prints the version (`0.0.0-dev` when running from source).
+
 ## Tests
 
 ```bash

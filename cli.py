@@ -16,6 +16,7 @@ from core.advanced.speed import SpeedOptions, change_speed
 from core.advanced.subtitles import SubtitleMode, SubtitleOptions, apply_subtitles
 from core.advanced.thumbnails import PreviewGifOptions, ThumbnailOptions, extract_thumbnail, generate_preview_gif
 from core.advanced.watermark import Position, WatermarkOptions, apply_watermark
+from core import __version__
 from core.audio_extractor import AudioBitrate, AudioFormat, ExtractOptions, extract_audio
 from core.batch import batch_convert_folder
 from core.converter import ConvertOptions, QualityMode, VideoCodec, convert
@@ -101,6 +102,7 @@ def _add_thumbnail(sub: argparse._SubParsersAction) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="offline-video-converter", description="Offline Video Converter CLI")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     _add_convert(sub)
     _add_cut(sub)
